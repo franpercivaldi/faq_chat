@@ -1,0 +1,28 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6335:6333"          # host:container  ← host 6335, contenedor 6333
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  api:
+    build: .
+    env_file:
+      - .env
+    environment:
+      - QDRANT_URL=http://qdrant:6333   # ← SIEMPRE el puerto interno aquí
+      - ROLES_CONFIG_PATH=/app/packages/config/roles.json
+    volumes:
+      - ./:/app:rw
+    ports:
+      - "8080:8080"
+    depends_on:
+      - qdrant
+    extra_hosts:
+      - "api-aulario-v2-dev-postgres-db.cx2aw2maaop4.us-east-1.rds.amazonaws.com:35.169.3.216"
+    command: >
+      uvicorn apps.api.main:app --host 0.0.0.0 --port 8080 --reload
+
+volumes:
+  qdrant_data:

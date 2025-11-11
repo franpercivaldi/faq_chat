@@ -1,0 +1,26 @@
+[
+  {
+    "faq_id": 101,
+    "segment_id": 1,
+    "question": "¿Cuáles son los horarios de atención?",
+    "response": "Atendemos de lunes a viernes de 9 a 18 hs.",
+    "link": null,
+    "created_at": "2025-11-01T00:00:00Z"
+  },
+  {
+    "faq_id": 102,
+    "segment_id": 2,
+    "question": "¿Cómo solicito un reembolso?",
+    "response": "Ingresá al portal y completá el formulario de Reembolsos.",
+    "link": "https://example.com/reembolsos",
+    "created_at": "2025-11-01T00:00:00Z"
+  },
+  {
+    "faq_id": 103,
+    "segment_id": 3,
+    "question": "¿Qué medios de pago aceptan?",
+    "response": "Aceptamos tarjeta de crédito, débito y transferencia.",
+    "link": null,
+    "created_at": "2025-11-01T00:00:00Z"
+  }
+]
