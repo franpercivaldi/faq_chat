@@ -1,5 +1,3 @@
-* Como probar el chat
-
 # FAQ Bot API - Sistema de Preguntas y Respuestas con IA
 
 Un chatbot inteligente que responde preguntas frecuentes (FAQs) usando **búsqueda semántica** y **generación con IA** (Google Gemini). 
@@ -71,9 +69,40 @@ api-1     | INFO:     Uvicorn running on http://0.0.0.0:8080
 qdrant-1  | [2024-11-11 10:30:15] ... Server started
 ```
 
-### 3. Probar el API (en otra terminal)
+### 3. Indexar las FAQs en Qdrant (Primera vez - IMPORTANTE)
 
-**Terminal 2:** Haz los primeros curls
+**Terminal 2:** Sin datos indexados, las búsquedas no funcionan. Hay dos opciones:
+
+#### Opción A: Indexar desde el archivo seed (recomendado para desarrollo)
+```bash
+curl -s -X POST http://localhost:8080/reindex \
+  -H 'Content-Type: application/json' \
+  -d '{"source": "seed"}' | jq
+```
+
+Respuesta esperada:
+```json
+{
+  "upserts": 3,
+  "skipped": 0,
+  "duration_ms": 1245
+}
+```
+
+Esto carga 3 FAQs de ejemplo desde `packages/config/seed_faqs.json`.
+
+#### Opción B: Indexar desde PostgreSQL (si ya hay FAQs en la BD)
+```bash
+curl -s -X POST http://localhost:8080/reindex \
+  -H 'Content-Type: application/json' \
+  -d '{"source": "db", "full": true}' | jq
+```
+
+Esto lee todas las FAQs de la tabla PostgreSQL, las convierte a vectores y las guarda en Qdrant.
+
+### 4. Probar el API
+
+**Terminal 2 (después de indexar):** Haz los primeros curls
 
 #### a) Salud del servicio
 ```bash
@@ -140,7 +169,40 @@ curl -s -X POST http://localhost:8080/chat \
 
 ---
 
-## 🏗️ Arquitectura del Proyecto
+## ⏱️ Primeros 5 Minutos (Checklist)
+
+Para levantar el proyecto por primera vez:
+
+```bash
+# 1️⃣ Terminal 1: Levantar Docker
+docker compose up --build
+
+# (esperar a que veas "INFO: Uvicorn running on http://0.0.0.0:8080")
+
+# 2️⃣ Terminal 2: Indexar FAQs en Qdrant (CRUCIAL)
+curl -s -X POST http://localhost:8080/reindex \
+  -H 'Content-Type: application/json' \
+  -d '{"source": "seed"}' | jq
+
+# (esperar respuesta con "upserts": 3)
+
+# 3️⃣ Terminal 2: Verificar que funciona
+curl -s http://localhost:8080/health | jq
+
+# 4️⃣ Terminal 2: Hacer una pregunta
+curl -s -X POST http://localhost:8080/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"message": "¿Cuál es el horario?", "role": "public"}' | jq
+```
+
+Si ves respuesta en el último paso ✅ ¡Listo!
+
+Si no hay respuesta o error "NO_RESULTS_FOR_ROLE", revisa:
+1. ¿Se ejecutó el `/reindex`? (debe devolver `upserts > 0`)
+2. ¿Los roles están en `packages/config/roles.json`?
+3. ¿Los `segment_id` de las FAQs coinciden con los roles?
+
+---
 
 ```
 faqbot/
@@ -393,6 +455,21 @@ python -m pytest tests/ -v
 
 ## 🐛 Troubleshooting
 
+### "Olvidé hacer el reindex al inicio"
+No hay problema, ejecuta:
+```bash
+curl -s -X POST http://localhost:8080/reindex \
+  -H 'Content-Type: application/json' \
+  -d '{"source": "seed"}' | jq
+```
+
+Si tienes datos en PostgreSQL y quieres indexar desde ahí:
+```bash
+curl -s -X POST http://localhost:8080/reindex \
+  -H 'Content-Type: application/json' \
+  -d '{"source": "db", "full": true}' | jq
+```
+
 ### "No hay conexión a Qdrant"
 ```bash
 # Verifica que el contenedor está corriendo
@@ -430,123 +507,5 @@ No hay FAQs en los segmentos permitidos para ese rol. Verifica:
 ## 📄 Licencia
 
 MIT
-
-
-* Comandos listos para ver muestras reales de la tabla desde dentro del contenedor (usando el mismo DSN que usa tu app). Así podés ver qué preguntar y validar que el bot responde bien. Usar en la consola
-
-* A) 10 filas recientes (preview de respuesta)
-```
-docker exec -i faqbot-api-1 python - <<'PY'
-import psycopg, textwrap
-from psycopg import sql
-from packages.config.settings import settings
-
-dsn = settings.pg_dsn()
-schema, table = ("public", settings.DB_TABLE)
-if "." in settings.DB_TABLE:
-    schema, table = settings.DB_TABLE.split(".", 1)
-
-# Column mapping (desde settings)
-c_id  = settings.DB_COL_ID
-c_seg = settings.DB_COL_SEGMENT_ID
-c_q   = settings.DB_COL_QUESTION
-c_r   = settings.DB_COL_RESPONSE
-c_lnk = settings.DB_COL_LINK
-c_crt = settings.DB_COL_CREATED_AT
-
-link_expr = sql.Identifier(c_lnk) if c_lnk else sql.SQL("NULL")
-created_expr = sql.Identifier(c_crt) if c_crt else sql.SQL("NULL")
-
-q = sql.SQL("""
-SELECT
-  {id}   AS id,
-  {seg}  AS "segmentId",
-  {qcol} AS question,
-  {rcol} AS response,
-  {lnk}  AS link,
-  {crt}  AS "createdAt"
-FROM {schema}.{table}
-ORDER BY {crt} DESC NULLS LAST, {id} DESC
-LIMIT 10
-""").format(
-    id=sql.Identifier(c_id),
-    seg=sql.Identifier(c_seg),
-    qcol=sql.Identifier(c_q),
-    rcol=sql.Identifier(c_r),
-    lnk=link_expr,
-    crt=created_expr,
-    schema=sql.Identifier(schema),
-    table=sql.Identifier(table),
-)
-
-def trunc(s, n=110):
-    s = "" if s is None else str(s)
-    return (s[:n] + "…") if len(s) > n else s
-
-with psycopg.connect(dsn) as conn, conn.cursor() as cur:
-    cur.execute(q)
-    rows = cur.fetchall()
-    for i, (id_, seg, ques, resp, link, crt) in enumerate(rows, 1):
-        print(f"[{i}] id={id_}  segmentId={seg}  createdAt={crt}")
-        print(" Q:", trunc(ques))
-        print(" A:", trunc(resp))
-        if link: print(" L:", trunc(link, 120))
-        print("-"*80)
-PY
-```
-
-B) 3 filas por cada segmentId (muestra balanceada)
-```
-docker exec -i faqbot-api-1 python - <<'PY'
-import psycopg
-from psycopg import sql
-from packages.config.settings import settings
-
-dsn = settings.pg_dsn()
-schema, table = ("public", settings.DB_TABLE)
-if "." in settings.DB_TABLE:
-    schema, table = settings.DB_TABLE.split(".", 1)
-
-c_id, c_seg, c_q, c_r, c_lnk, c_crt = (
-    settings.DB_COL_ID, settings.DB_COL_SEGMENT_ID, settings.DB_COL_QUESTION,
-    settings.DB_COL_RESPONSE, settings.DB_COL_LINK, settings.DB_COL_CREATED_AT
-)
-
-link_expr = sql.Identifier(c_lnk) if c_lnk else sql.SQL("NULL")
-created_expr = sql.Identifier(c_crt) if c_crt else sql.SQL("NULL")
-
-q = sql.SQL("""
-WITH ranked AS (
-  SELECT
-    {id}   AS id,
-    {seg}  AS "segmentId",
-    {qcol} AS question,
-    {rcol} AS response,
-    {lnk}  AS link,
-    {crt}  AS "createdAt",
-    ROW_NUMBER() OVER (
-      PARTITION BY {seg}
-      ORDER BY {crt} DESC NULLS LAST, {id} DESC
-    ) AS rn
-  FROM {schema}.{table}
-)
-SELECT * FROM ranked WHERE rn <= 3 ORDER BY "segmentId", rn;
-""").format(
-    id=sql.Identifier(c_id),
-    seg=sql.Identifier(c_seg),
-    qcol=sql.Identifier(c_q),
-    rcol=sql.Identifier(c_r),
-    lnk=link_expr,
-    crt=created_expr,
-    schema=sql.Identifier(schema),
-    table=sql.Identifier(table),
-)
-
-with psycopg.connect(dsn) as conn, conn.cursor() as cur:
-    cur.execute(q)
-    for row in cur.fetchall():
-        print(f"seg={row[1]}  id={row[0]}  rn={row[6]}  Q={row[2][:80]}  A={row[3][:80]}")
-PY
-```
 
 
