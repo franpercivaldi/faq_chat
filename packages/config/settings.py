@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     DB_COL_SEGMENT_ID: str = "segment_id"
     DB_COL_QUESTION: str = "question"
     DB_COL_RESPONSE: str = "response"
-    DB_COL_LINK: str | None = "link"
+    DB_COL_LINK: str | None = "keyFile"
     DB_COL_CREATED_AT: str | None = "created_at"
     DB_COL_UPDATED_AT: str | None = "updated_at"
     DB_COL_IS_ACTIVE: str | None = None        # ej. "is_active"

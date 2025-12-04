@@ -121,7 +121,7 @@ Respuesta esperada:
 curl -s -X POST http://localhost:8080/chat \
   -H 'Content-Type: application/json' \
   -d '{
-    "message": "¿Cuál es el horario de atención?",
+    "message": "¿Que puedo hacer en la agenda?",
     "role": "Secretaria",
     "lang": "es"
   }' | jq
@@ -131,18 +131,42 @@ Respuesta esperada:
 ```json
 {
   "mode": "RAG",
-  "answer": "Nuestro horario es de lunes a viernes de 9:00 a 17:00 horas.",
+  "answer": "En Agenda podés:\n*   Gestionar las reservas de la fecha actual o de una fecha específica.\n*   Visualizar, crear, modificar y eliminar una reserva de tu unidad académica.\n*   Encontrar el botón “Crear” para hacer una reserva nueva.\n*   Visualizar las reservas de tu unidad académica y las reservas de otro responsable que tenga reservas en el mismo espacio.",
   "sources": [
     {
-      "faq_id": 1,
+      "faq_id": 154,
+      "segment_id": 13,
+      "score": 0.807365,
+      "link": null
+    },
+    {
+      "faq_id": 158,
+      "segment_id": 13,
+      "score": 0.7620022,
+      "link": null
+    },
+    {
+      "faq_id": 155,
+      "segment_id": 13,
+      "score": 0.74436164,
+      "link": null
+    },
+    {
+      "faq_id": 130,
       "segment_id": 11,
-      "score": 0.85,
-      "link": "https://ejemplo.com/horarios"
+      "score": 0.7396795,
+      "link": null
+    },
+    {
+      "faq_id": 134,
+      "segment_id": 11,
+      "score": 0.7051383,
+      "link": "Aulario - Instructivo Soporte IT y Mant.pdf"
     }
   ],
   "meta": {
     "top_k": 5,
-    "latency_ms": 234,
+    "latency_ms": 4863,
     "trace_id": null
   }
 }
@@ -358,6 +382,9 @@ Cuando alguien pregunta con rol "Secretaria", solo busca en los segmentos 11, 12
 ---
 
 ## 📊 Herramientas Útiles
+
+# Borrar la colección
+curl -s -X DELETE http://localhost:6335/collections/faq_es_v1 | jq
 
 ### Ver datos en la base de datos
 
